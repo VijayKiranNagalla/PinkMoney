@@ -25,6 +25,7 @@ class UpiNotificationService : NotificationListenerService() {
 
         val title = extras.getString("android.title") ?: return
         val text = extras.getCharSequence("android.text")?.toString() ?: return
+        val timestamp = sbn.postTime
 
         // 2️⃣ Keyword filter
         val combinedText = "$title $text".lowercase()
@@ -50,7 +51,7 @@ class UpiNotificationService : NotificationListenerService() {
 
         Log.d(
             "PinkMoneyParsed",
-            "AMOUNT=$amount | MERCHANT=$merchant | TEXT=$combinedText"
+            "AMOUNT=$amount | MERCHANT=$merchant | TIME=$timestamp"
         )
     }
 }
