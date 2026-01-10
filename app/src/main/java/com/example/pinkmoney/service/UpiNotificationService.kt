@@ -3,6 +3,8 @@ package com.example.pinkmoney.service
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.example.pinkmoney.utils.AmountParser
+import com.example.pinkmoney.utils.MerchantParser
 import com.example.pinkmoney.utils.UpiAppFilter
 import com.example.pinkmoney.utils.SmsAppFilter
 
@@ -42,9 +44,13 @@ class UpiNotificationService : NotificationListenerService() {
 
         if (!isFinancial) return
 
+
+        val amount = AmountParser.extractAmount(combinedText)
+        val merchant = MerchantParser.extractMerchant(combinedText)
+
         Log.d(
-            "PinkMoneyHybrid",
-            "FINANCIAL → Source: $packageName | Title: $title | Text: $text"
+            "PinkMoneyParsed",
+            "AMOUNT=$amount | MERCHANT=$merchant | TEXT=$combinedText"
         )
     }
 }
