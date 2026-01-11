@@ -7,6 +7,9 @@ import com.example.pinkmoney.utils.AmountParser
 import com.example.pinkmoney.utils.MerchantParser
 import com.example.pinkmoney.utils.UpiAppFilter
 import com.example.pinkmoney.utils.SmsAppFilter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class UpiNotificationService : NotificationListenerService() {
 
@@ -25,6 +28,11 @@ class UpiNotificationService : NotificationListenerService() {
 
         val title = extras.getString("android.title") ?: return // if title doesnt exit then can return
         val text = extras.getCharSequence("android.text")?.toString() ?: return
+        val timestamp = sbn.postTime
+        val date = Date(timestamp)
+        val formatter = SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
+
+        val readableTime = formatter.format(date)
 
         // 2️⃣ Keyword filter
         val combinedText = "$title $text".lowercase()
@@ -50,7 +58,7 @@ class UpiNotificationService : NotificationListenerService() {
 
         Log.d(
             "PinkMoneyParsed",
-            "AMOUNT=$amount | MERCHANT=$merchant | TEXT=$combinedText"
+            "AMOUNT=$amount | MERCHANT=$merchant | TIME=$readableTime | TEXT=$combinedText"
         )
     }
 }
