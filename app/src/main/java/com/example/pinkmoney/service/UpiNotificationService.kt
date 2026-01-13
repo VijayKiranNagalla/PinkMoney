@@ -17,7 +17,7 @@ class UpiNotificationService : NotificationListenerService() {
 
         val packageName = sbn.packageName
 
-        // 1️⃣ Source filter: UPI apps OR SMS apps
+        //  Source filter: UPI apps OR SMS apps
         val isFinancialSource =
             UpiAppFilter.isUpiApp(packageName) ||
                     SmsAppFilter.isSmsApp(packageName)
@@ -34,7 +34,7 @@ class UpiNotificationService : NotificationListenerService() {
 
         val readableTime = formatter.format(date)
 
-        // 2️⃣ Keyword filter
+        //  Keyword filter
         val combinedText = "$title $text".lowercase()
 
         val isFinancial = listOf(
