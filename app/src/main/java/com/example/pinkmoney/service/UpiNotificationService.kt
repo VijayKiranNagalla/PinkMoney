@@ -3,13 +3,15 @@ package com.example.pinkmoney.service
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.example.pinkmoney.data.db.PinkMoneyDatabase
+import com.example.pinkmoney.data.entity.TransactionEntity
 import com.example.pinkmoney.utils.AmountParser
 import com.example.pinkmoney.utils.MerchantParser
-import com.example.pinkmoney.utils.UpiAppFilter
 import com.example.pinkmoney.utils.SmsAppFilter
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.example.pinkmoney.utils.UpiAppFilter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class UpiNotificationService : NotificationListenerService() {
 
@@ -17,7 +19,7 @@ class UpiNotificationService : NotificationListenerService() {
 
         val packageName = sbn.packageName
 
-        //  Source filter: UPI apps OR SMS apps
+        // 1️⃣ Source filter: UPI apps OR SMS apps
         val isFinancialSource =
             UpiAppFilter.isUpiApp(packageName) ||
                     SmsAppFilter.isSmsApp(packageName)
@@ -25,18 +27,13 @@ class UpiNotificationService : NotificationListenerService() {
         if (!isFinancialSource) return
 
         val extras = sbn.notification.extras
-
-        val title = extras.getString("android.title") ?: return // if title doesnt exit then can return
+        val title = extras.getString("android.title") ?: return
         val text = extras.getCharSequence("android.text")?.toString() ?: return
-        val timestamp = sbn.postTime
-        val date = Date(timestamp)
-        val formatter = SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
 
-        val readableTime = formatter.format(date)
+        val rawText = "$title $text"
+        val combinedText = rawText.lowercase()
 
-        //  Keyword filter
-        val combinedText = "$title $text".lowercase()
-
+        // 2️⃣ Keyword filter
         val isFinancial = listOf(
             "paid",
             "debited",
@@ -52,13 +49,31 @@ class UpiNotificationService : NotificationListenerService() {
 
         if (!isFinancial) return
 
-
-        val amount = AmountParser.extractAmount(combinedText)
+        // 3️⃣ Parse
+        val amount = AmountParser.extractAmount(combinedText) ?: return
         val merchant = MerchantParser.extractMerchant(combinedText)
+        val timestamp = sbn.postTime
 
         Log.d(
             "PinkMoneyParsed",
-            "AMOUNT=$amount | MERCHANT=$merchant | TIME=$readableTime | TEXT=$combinedText"
+            "AMOUNT=$amount | MERCHANT=$merchant | TIME=$timestamp | TEXT=$rawText"
         )
+
+        // 4️⃣ Persist
+        val source = if (SmsAppFilter.isSmsApp(packageName)) "SMS" else "UPI"
+
+        val transaction = TransactionEntity(
+            amount = amount,
+            merchant = merchant,
+            timestamp = timestamp,
+            source = source,
+            rawText = rawText
+        )
+
+        val db = PinkMoneyDatabase.getInstance(applicationContext)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            db.transactionDao().insertTransaction(transaction)
+        }
     }
 }
