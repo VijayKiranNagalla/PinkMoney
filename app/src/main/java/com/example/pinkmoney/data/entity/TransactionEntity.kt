@@ -2,6 +2,7 @@ package com.example.pinkmoney.data.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.example.pinkmoney.utils.TransactionTypeDetector
 
 @Entity(tableName = "transactions")
 data class TransactionEntity(
@@ -16,6 +17,8 @@ data class TransactionEntity(
     val timestamp: Long,
 
     val source: String,   // "UPI" or "SMS"
+
+    val transactionType: TransactionTypeDetector.TransactionType,   //  "CREDIT" or "DEBIT"
 
     val rawText: String
 )

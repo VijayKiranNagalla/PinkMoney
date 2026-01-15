@@ -8,6 +8,7 @@ import com.example.pinkmoney.data.entity.TransactionEntity
 import com.example.pinkmoney.utils.AmountParser
 import com.example.pinkmoney.utils.MerchantParser
 import com.example.pinkmoney.utils.SmsAppFilter
+import com.example.pinkmoney.utils.TransactionTypeDetector
 import com.example.pinkmoney.utils.UpiAppFilter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,10 +54,11 @@ class UpiNotificationService : NotificationListenerService() {
         val amount = AmountParser.extractAmount(combinedText) ?: return
         val merchant = MerchantParser.extractMerchant(combinedText)
         val timestamp = sbn.postTime
+        val transactionType = TransactionTypeDetector.detect(combinedText) ?: return
 
         Log.d(
             "PinkMoneyParsed",
-            "AMOUNT=$amount | MERCHANT=$merchant | TIME=$timestamp | TEXT=$rawText"
+            "AMOUNT=$amount | MERCHANT=$merchant | TIME=$timestamp | TEXT=$rawText | TRANSACTIONTYPE=$transactionType"
         )
 
         // 4️⃣ Persist
@@ -67,7 +69,8 @@ class UpiNotificationService : NotificationListenerService() {
             merchant = merchant,
             timestamp = timestamp,
             source = source,
-            rawText = rawText
+            rawText = rawText ,
+            transactionType = transactionType
         )
 
         val db = PinkMoneyDatabase.getInstance(applicationContext)
