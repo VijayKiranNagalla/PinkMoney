@@ -74,6 +74,7 @@ class UpiNotificationService : NotificationListenerService() {
 
         CoroutineScope(Dispatchers.IO).launch {
             db.transactionDao().insertTransaction(transaction)
+            Log.d("PinkMoneyDB", "Transaction inserted into DB")
         }
     }
 }
