@@ -50,8 +50,6 @@ object MerchantParser {
                 }
             }
         }
-
-
         // 3️⃣ Nothing reliable found
         return null
     }
