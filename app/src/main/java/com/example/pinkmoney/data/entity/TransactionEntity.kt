@@ -1,5 +1,6 @@
 package com.example.pinkmoney.data.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -17,5 +18,6 @@ data class TransactionEntity(
 
     val source: String,   // "UPI" or "SMS"
 
-    val rawText: String
+    val rawText: String,
+    val transactionType: String
 )
