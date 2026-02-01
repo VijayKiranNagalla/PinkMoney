@@ -10,12 +10,14 @@ import com.example.pinkmoney.data.entity.TransactionEntity
 interface TransactionDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertTransaction(
-        transaction: TransactionEntity
-    )
+    suspend fun insertTransaction(transaction: TransactionEntity): Long
 
     @Query(
         "SELECT * FROM transactions ORDER BY timestamp DESC"
     )
     suspend fun getAllTransactions(): List<TransactionEntity>
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE txn_hash = :hash")
+    suspend fun exists(hash: String): Int
+
 }

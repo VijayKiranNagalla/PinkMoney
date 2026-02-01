@@ -13,6 +13,7 @@ import com.example.pinkmoney.utils.UpiAppFilter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.example.pinkmoney.utils.TransactionHasher
 
 class UpiNotificationService : NotificationListenerService() {
 
@@ -28,8 +29,9 @@ class UpiNotificationService : NotificationListenerService() {
         if (!isFinancialSource) return
 
         val extras = sbn.notification.extras
-        val title = extras.getString("android.title") ?: return
-        val text = extras.getCharSequence("android.text")?.toString() ?: return
+        val title = extras.getCharSequence("android.title")?.toString() ?: return
+        val text  = extras.getCharSequence("android.text")?.toString() ?: return
+
 
         val rawText = "$title $text"
         val combinedText = rawText.lowercase()
@@ -66,7 +68,13 @@ class UpiNotificationService : NotificationListenerService() {
         // 4️⃣ Persist
         val source = if (SmsAppFilter.isSmsApp(packageName)) "SMS" else "UPI"
 
-
+        val transactionHash = TransactionHasher.generate(
+            amount = amount,
+            merchant = merchant,
+            timestamp = timestamp,
+            transactionType = detectedTransactionType,
+            source = source
+        )
 
 
         val transaction = TransactionEntity(
@@ -74,15 +82,23 @@ class UpiNotificationService : NotificationListenerService() {
             merchant = merchant,
             timestamp = timestamp,
             source = source,
+            transactionType = detectedTransactionType,
             rawText = rawText,
-            transactionType = detectedTransactionType
+            transactionHash = transactionHash
         )
 
         val db = PinkMoneyDatabase.getInstance(applicationContext)
 
         CoroutineScope(Dispatchers.IO).launch {
-            db.transactionDao().insertTransaction(transaction)
-            Log.d("PinkMoneyDB", "Transaction inserted into DB")
+            val rowId = db.transactionDao().insertTransaction(transaction)
+
+            if (rowId == -1L) {
+                Log.d("PinkMoneyDedup", "Duplicate transaction ignored")
+            } else {
+                Log.d("success", "transaction inserted in room")
+            }
         }
+
+
     }
 }

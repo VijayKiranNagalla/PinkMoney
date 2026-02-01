@@ -2,22 +2,24 @@ package com.example.pinkmoney.data.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "transactions")
+@Entity(
+    tableName = "transactions",
+    indices = [Index(value = ["txn_hash"], unique = true)]
+)
 data class TransactionEntity(
-
-    @field:PrimaryKey(autoGenerate = true)
+    @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
 
     val amount: Double,
-
     val merchant: String?,
-
     val timestamp: Long,
-
-    val source: String,   // "UPI" or "SMS"
-
+    val source: String,
+    val transactionType: String,
     val rawText: String,
-    val transactionType: String
+
+    @ColumnInfo(name = "txn_hash")
+    val transactionHash: String
 )
