@@ -9,7 +9,7 @@ import com.example.pinkmoney.data.entity.TransactionEntity
 
 @Database(
     entities = [TransactionEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class PinkMoneyDatabase : RoomDatabase() {
@@ -27,7 +27,10 @@ abstract class PinkMoneyDatabase : RoomDatabase() {
                     context.applicationContext,
                     PinkMoneyDatabase::class.java,
                     "pinkmoney_db"
-                ).build().also { INSTANCE = it }
+                )
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
+                    .also { INSTANCE = it }
             }
         }
     }
