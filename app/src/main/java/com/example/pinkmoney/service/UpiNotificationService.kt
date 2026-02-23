@@ -6,6 +6,7 @@ import android.util.Log
 import com.example.pinkmoney.data.db.PinkMoneyDatabase
 import com.example.pinkmoney.data.entity.TransactionEntity
 import com.example.pinkmoney.utils.AmountParser
+import com.example.pinkmoney.utils.MerchantNormalizer
 import com.example.pinkmoney.utils.MerchantParser
 import com.example.pinkmoney.utils.SmsAppFilter
 import com.example.pinkmoney.utils.TransactionTypeDetector
@@ -14,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.example.pinkmoney.utils.TransactionHasher
+import com.example.pinkmoney.utils.TransactionValidityFilter
 
 class UpiNotificationService : NotificationListenerService() {
 
@@ -51,18 +53,31 @@ class UpiNotificationService : NotificationListenerService() {
         }
 
         if (!isFinancial) return
+        //also reject if its a bill
+        if (!TransactionValidityFilter.isValidTransaction(combinedText)) {
+            Log.d("PinkMoneyFilter", "Ignored non-transaction notification")
+            return
+        }
 
         // 3️⃣ Parse
         val amount = AmountParser.extractAmount(combinedText) ?: return
         val merchant = MerchantParser.extractMerchant(combinedText)
         val timestamp = sbn.postTime
         val detectedTransactionType =
-            TransactionTypeDetector.detect(combinedText)?.name ?: return
+            TransactionTypeDetector.detect(combinedText).name
+
+        if (detectedTransactionType == "UNKNOWN") {
+            Log.d("PinkMoneyType", "UNKNOWN | $rawText")
+        }
 
         Log.d(
             "PinkMoneyParsed",
             "TYPE=$detectedTransactionType | AMOUNT=$amount | MERCHANT=$merchant | TIME=$timestamp | TEXT=$rawText"
         )
+
+        val normalizedMerchant = MerchantNormalizer.normalize(merchant)
+        Log.d("PinkMoneyNormalized", "RAW=$merchant | NORMALIZED=$normalizedMerchant")
+
 
 
         // 4️⃣ Persist
@@ -82,7 +97,7 @@ class UpiNotificationService : NotificationListenerService() {
             merchant = merchant,
             timestamp = timestamp,
             source = source,
-            transactionType = detectedTransactionType,
+            transactionType = detectedTransactionType, // CREDIT / DEBIT / UNKNOWN
             rawText = rawText,
             transactionHash = transactionHash
         )

@@ -8,7 +8,7 @@ object TransactionHasher {
         amount: Double,
         merchant: String?,
         timestamp: Long,
-        transactionType: String,
+        transactionType: String?,
         source: String
     ): String {
 
