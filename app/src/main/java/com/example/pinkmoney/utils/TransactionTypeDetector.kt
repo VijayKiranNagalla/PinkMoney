@@ -4,43 +4,32 @@ object TransactionTypeDetector {
 
     enum class TransactionType {
         CREDIT,
-        DEBIT
+        DEBIT,
+        UNKNOWN
     }
 
-    // Strong keywords banks consistently use
-    private val creditKeywords = listOf(
-        "credited",
-        "received",
-        "refund",
-        "cashback"
-    )
+    fun detect(text: String): TransactionType {
+        val lower = text.lowercase()
 
-    private val debitKeywords = listOf(
-        "debited",
-        "spent",
-        "paid",
-        "withdrawn",
-        "purchase"
-    )
+        val isCredit = listOf(
+            "credited",
+            "received",
+            "refund",
+            "cashback"
+        ).any { lower.contains(it) }
 
-    /**
-     * Determines whether the transaction is CREDIT or DEBIT
-     * based on notification text.
-     */
-    fun detect(text: String): TransactionType? {
-        val normalized = text.lowercase()
+        val isDebit = listOf(
+            "debited",
+            "paid",
+            "spent",
+            "sent",
+            "withdrawn"
+        ).any { lower.contains(it) }
 
-        // 1️⃣ Credit detection (highest priority)
-        if (creditKeywords.any { normalized.contains(it) }) {
-            return TransactionType.CREDIT
+        return when {
+            isCredit && !isDebit -> TransactionType.CREDIT
+            isDebit && !isCredit -> TransactionType.DEBIT
+            else -> TransactionType.UNKNOWN
         }
-
-        // 2️⃣ Debit detection
-        if (debitKeywords.any { normalized.contains(it) }) {
-            return TransactionType.DEBIT
-        }
-
-        // 3️⃣ Unknown / ambiguous
-        return null
     }
 }
