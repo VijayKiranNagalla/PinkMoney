@@ -1,6 +1,7 @@
 package com.example.pinkmoney.utils
 
 import android.util.Log
+import com.example.pinkmoney.BuildConfig
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import org.json.JSONArray
@@ -9,7 +10,7 @@ import java.io.IOException
 
 object GeminiParser {
 
-    private const val API_KEY = "AIzaSyBgeLE3XFhgH6fQhCXFhIch-NeRxxssw7E"
+    private const val API_KEY = BuildConfig.GEMINI_API_KEY
 
     private val client = OkHttpClient()
 
