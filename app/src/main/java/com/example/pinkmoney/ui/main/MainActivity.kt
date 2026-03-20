@@ -7,17 +7,11 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pinkmoney.data.db.PinkMoneyDatabase
 import com.example.pinkmoney.ui.theme.PinkMoneyTheme
-import com.example.pinkmoney.ui.transactions.TransactionListScreen
 import com.example.pinkmoney.ui.transactions.TransactionViewModel
 import com.example.pinkmoney.utils.isNotificationAccessEnabled
 
@@ -25,14 +19,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         enableEdgeToEdge()
 
         setContent {
-
             val database = PinkMoneyDatabase.getInstance(applicationContext)
 
-            // Proper ViewModel factory
             val transactionViewModel: TransactionViewModel = viewModel(
                 factory = object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -42,13 +33,9 @@ class MainActivity : ComponentActivity() {
             )
 
             PinkMoneyTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-
-                    TransactionListScreen(
-                        transactionsFlow = transactionViewModel.transactions,
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                MainScreen(
+                    viewModel = transactionViewModel
+                )
             }
         }
     }
