@@ -11,89 +11,79 @@ import java.io.IOException
 object GeminiParser {
 
     private const val API_KEY = BuildConfig.GEMINI_API_KEY
-
     private val client = OkHttpClient()
 
     fun parseTransaction(
         text: String,
-        callback: (merchant: String?, type: String?) -> Unit
+        callback: (category: String?, merchant: String?, type: String?) -> Unit
     ) {
 
         val prompt = """
-You are an expert financial SMS parser.
+You are an advanced financial SMS classifier.
 
+STEP 1 → Classify message:
+- REAL_TRANSACTION
+- SPAM
+- PROMOTIONAL
+- INFO
+
+STEP 2 → ONLY if REAL_TRANSACTION:
 Extract:
-1. Merchant or receiver name
-2. Transaction type (DEBIT or CREDIT)
+- merchant
+- type: DEBIT or CREDIT
 
 Rules:
-- If SMS contains "debited" → DEBIT
-- If SMS contains "credited" → CREDIT
-- Ignore bank names like ICICI, HDFC, SBI
-- Prefer UPI receiver name if present
+- debited → DEBIT
+- credited → CREDIT
+- ignore bank names
+- prefer UPI receiver
+- no money movement → NOT REAL_TRANSACTION
 
-Return ONLY JSON in this format:
+Return STRICT JSON:
 
 {
- "merchant": "name",
- "type": "DEBIT or CREDIT"
+ "category": "REAL_TRANSACTION | SPAM | PROMOTIONAL | INFO",
+ "merchant": "name or null",
+ "type": "DEBIT | CREDIT | null"
 }
 
 SMS:
 $text
-""".trimIndent()
+        """.trimIndent()
 
         Log.d("GeminiPrompt", prompt)
 
-        val part = JSONObject()
-        part.put("text", prompt)
+        val bodyJson = JSONObject().apply {
+            put("contents", JSONArray().put(
+                JSONObject().put("parts",
+                    JSONArray().put(JSONObject().put("text", prompt))
+                )
+            ))
 
-        val partsArray = JSONArray()
-        partsArray.put(part)
-
-        val content = JSONObject()
-        content.put("parts", partsArray)
-
-        val contentsArray = JSONArray()
-        contentsArray.put(content)
-
-        val bodyJson = JSONObject()
-        bodyJson.put("contents", contentsArray)
-
-        // 🔴 FORCE JSON RESPONSE
-        val generationConfig = JSONObject()
-        generationConfig.put("response_mime_type", "application/json")
-
-        bodyJson.put("generationConfig", generationConfig)
-
-        val requestBody = RequestBody.create(
-            "application/json".toMediaTypeOrNull(),
-            bodyJson.toString()
-        )
+            put("generationConfig", JSONObject().put(
+                "response_mime_type", "application/json"
+            ))
+        }
 
         val request = Request.Builder()
             .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$API_KEY")
-            .post(requestBody)
+            .post(RequestBody.create("application/json".toMediaTypeOrNull(), bodyJson.toString()))
             .build()
 
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("GeminiAPI", "Request failed: ${e.message}")
-                callback(null, null)
+                Log.e("GeminiAPI", "Failed: ${e.message}")
+                callback(null, null, null)
             }
 
             override fun onResponse(call: Call, response: Response) {
-
                 val body = response.body?.string() ?: return
 
                 Log.d("GeminiFullResponse", body)
 
                 try {
-
-                    val json = JSONObject(body)
-
-                    val aiText = json
+                    val aiText = JSONObject(body)
                         .getJSONArray("candidates")
                         .getJSONObject(0)
                         .getJSONObject("content")
@@ -103,30 +93,31 @@ $text
 
                     Log.d("GeminiAIText", aiText)
 
-                    // Gemini now returns clean JSON
                     val result = JSONObject(aiText)
 
+                    val category = result.optString("category", "UNKNOWN")
                     val merchant = result.optString("merchant", "Unknown")
                     val type = result.optString("type", "UNKNOWN")
 
-                    Log.d("GeminiParsedResult", "Merchant=$merchant Type=$type")
+                    Log.d("GeminiParsed",
+                        "Category=$category Merchant=$merchant Type=$type")
 
-                    callback(merchant, type)
+                    callback(category, merchant, type)
 
                 } catch (e: Exception) {
 
                     Log.e("GeminiParseError", e.toString())
 
                     // fallback heuristic
-                    val type = if (text.lowercase().contains("debited")) {
-                        "DEBIT"
-                    } else if (text.lowercase().contains("credited")) {
-                        "CREDIT"
-                    } else {
-                        "UNKNOWN"
+                    val lower = text.lowercase()
+
+                    val type = when {
+                        "debited" in lower -> "DEBIT"
+                        "credited" in lower -> "CREDIT"
+                        else -> "UNKNOWN"
                     }
 
-                    callback("Unknown", type)
+                    callback("UNKNOWN", "Unknown", type)
                 }
             }
         })
