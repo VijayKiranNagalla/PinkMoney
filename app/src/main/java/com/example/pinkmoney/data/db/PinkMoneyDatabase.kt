@@ -9,7 +9,7 @@ import com.example.pinkmoney.data.entity.TransactionEntity
 
 @Database(
     entities = [TransactionEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class PinkMoneyDatabase : RoomDatabase() {

@@ -32,27 +32,20 @@ class UpiNotificationService : NotificationListenerService() {
 
         // 2️⃣ Keyword filter
         val isFinancial = listOf(
-            "paid",
-            "debited",
-            "credited",
-            "received",
-            "transaction",
-            "upi",
-            "₹",
-            "inr"
+            "paid", "debited", "credited", "received",
+            "transaction", "upi", "₹", "inr"
         ).any { combinedText.contains(it) }
 
         if (!isFinancial) return
 
-        // 3️⃣ Noise filtering
+        // 3️⃣ Noise filter
         if (!TransactionValidityFilter.isValidTransaction(combinedText)) {
-            Log.d("PinkMoneyFilter", "Ignored non-transaction notification")
+            Log.d("PinkMoneyFilter", "Ignored non‑transaction notification")
             return
         }
 
         // 4️⃣ Extract amount locally
         val amount = AmountParser.extractAmount(combinedText) ?: return
-
         val timestamp = sbn.postTime
 
         val source =
@@ -63,13 +56,23 @@ class UpiNotificationService : NotificationListenerService() {
 
         Log.d("PinkMoneyAI", "Sending transaction to Gemini")
         Log.d("GeminiPrompt", rawText)
-        // 5️⃣ Call Gemini
-        GeminiParser.parseTransaction(rawText) { merchant, type ->
+
+        // 5️⃣ CALL GEMINI (NEW SIGNATURE)
+        GeminiParser.parseTransaction(rawText) { category, merchant, type ->
+
+            Log.d("PinkMoneyAIResult", "CATEGORY=$category")
+
+            // 🚨 VERY IMPORTANT
+            if (category != "REAL_TRANSACTION") {
+                Log.d("PinkMoneyAI", "Ignored $category message")
+                return@parseTransaction
+            }
 
             val finalMerchant = merchant ?: "Unknown"
             val finalType = type ?: "UNKNOWN"
 
-            val normalizedMerchant = MerchantNormalizer.normalize(finalMerchant)
+            val normalizedMerchant =
+                MerchantNormalizer.normalize(finalMerchant)
 
             Log.d(
                 "PinkMoneyAIResult",
@@ -95,7 +98,6 @@ class UpiNotificationService : NotificationListenerService() {
             )
 
             CoroutineScope(Dispatchers.IO).launch {
-
                 val rowId = db.transactionDao().insertTransaction(transaction)
 
                 if (rowId == -1L) {
