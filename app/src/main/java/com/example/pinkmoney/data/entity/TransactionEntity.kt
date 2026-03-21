@@ -19,6 +19,7 @@ data class TransactionEntity(
     val source: String,
     val transactionType: String,
     val rawText: String,
+    val category: String,
 
     @ColumnInfo(name = "txn_hash")
     val transactionHash: String

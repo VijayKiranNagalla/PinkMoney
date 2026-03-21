@@ -74,6 +74,9 @@ class UpiNotificationService : NotificationListenerService() {
             val normalizedMerchant =
                 MerchantNormalizer.normalize(finalMerchant)
 
+            val category =
+                MerchantCategoryClassifier.classify(normalizedMerchant)
+
             Log.d(
                 "PinkMoneyAIResult",
                 "TYPE=$finalType | MERCHANT=$normalizedMerchant"
@@ -94,7 +97,8 @@ class UpiNotificationService : NotificationListenerService() {
                 source = source,
                 transactionType = finalType,
                 rawText = rawText,
-                transactionHash = transactionHash
+                transactionHash = transactionHash,
+                category = category
             )
 
             CoroutineScope(Dispatchers.IO).launch {
