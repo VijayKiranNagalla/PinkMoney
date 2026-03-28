@@ -5,16 +5,24 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.pinkmoney.data.dao.TransactionDao
+import com.example.pinkmoney.data.dao.BucketDao
 import com.example.pinkmoney.data.entity.TransactionEntity
+import com.example.pinkmoney.data.entity.BucketEntity
+import com.example.pinkmoney.data.entity.MerchantBucketMap
 
 @Database(
-    entities = [TransactionEntity::class],
-    version = 7,
+    entities = [
+        TransactionEntity::class,
+        BucketEntity::class,
+        MerchantBucketMap::class
+    ],
+    version = 8,
     exportSchema = false
 )
 abstract class PinkMoneyDatabase : RoomDatabase() {
 
     abstract fun transactionDao(): TransactionDao
+    abstract fun bucketDao(): BucketDao
 
     companion object {
 
@@ -29,7 +37,7 @@ abstract class PinkMoneyDatabase : RoomDatabase() {
                     "pinkmoney_db"
                 )
                     .fallbackToDestructiveMigration()
-                    .build().also { INSTANCE = it }
+                    .build()
                     .also { INSTANCE = it }
             }
         }

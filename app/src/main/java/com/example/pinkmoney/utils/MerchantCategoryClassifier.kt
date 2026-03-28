@@ -2,59 +2,73 @@ package com.example.pinkmoney.utils
 
 object MerchantCategoryClassifier {
 
+    private val categoryMap = mapOf(
+
+        // 🍔 FOOD
+        "Food" to listOf(
+            "zomato", "swiggy", "dominos", "pizza", "kfc",
+            "burger", "restaurant", "cafe", "starbucks",
+            "eatclub", "faasos", "box8", "mcd", "subway"
+        ),
+
+        // 🛒 GROCERIES
+        "Groceries" to listOf(
+            "dmart", "reliance smart", "bigbasket", "grofers",
+            "blinkit", "zepto", "jiomart", "more store",
+            "spencer", "fresh", "easyday"
+        ),
+
+        // 🛍 SHOPPING
+        "Shopping" to listOf(
+            "amazon", "flipkart", "myntra", "ajio",
+            "meesho", "tatacliq", "shopclues", "nykaa"
+        ),
+
+        // 💡 BILLS
+        "Bills" to listOf(
+            "electric", "electricity", "bescom", "tneb",
+            "water", "gas", "broadband", "wifi",
+            "jio", "airtel", "vi", "bsnl",
+            "recharge", "postpaid"
+        ),
+
+        // 📱 ELECTRONICS
+        "Electronics" to listOf(
+            "croma", "reliance digital", "vijay sales",
+            "apple", "samsung", "oneplus", "mi store"
+        ),
+
+        // 🚕 TRANSPORT
+        "Transport" to listOf(
+            "uber", "ola", "rapido", "metro",
+            "irctc", "redbus", "makemytrip", "yatra"
+        ),
+
+        // 🎬 ENTERTAINMENT
+        "Entertainment" to listOf(
+            "netflix", "amazon prime", "primevideo",
+            "hotstar", "spotify", "youtube", "bookmyshow"
+        ),
+
+        // 🏦 FINANCE / TRANSFERS
+        "Transfer" to listOf(
+            "upi", "transfer", "neft", "imps",
+            "rtgs", "paytm", "phonepe", "gpay"
+        )
+    )
+
     fun classify(merchantRaw: String?): String {
 
-        if (merchantRaw == null) return "Others"
+        if (merchantRaw.isNullOrBlank()) return "Others"
 
         val merchant = merchantRaw.lowercase()
 
-        return when {
-
-            // 🍔 FOOD
-            merchant.contains("zomato") ||
-                    merchant.contains("swiggy") ||
-                    merchant.contains("eat") ||
-                    merchant.contains("restaurant") ||
-                    merchant.contains("cafe") ->
-                "Food"
-
-            // 🛒 GROCERIES
-            merchant.contains("dmart") ||
-                    merchant.contains("reliance") ||
-                    merchant.contains("bigbasket") ||
-                    merchant.contains("grofers") ||
-                    merchant.contains("jiomart") ->
-                "Groceries"
-
-            // 🛍 SHOPPING
-            merchant.contains("amazon") ||
-                    merchant.contains("flipkart") ||
-                    merchant.contains("myntra") ||
-                    merchant.contains("ajio") ->
-                "Shopping"
-
-            // 💡 BILLS
-            merchant.contains("electric") ||
-                    merchant.contains("bescom") ||
-                    merchant.contains("water") ||
-                    merchant.contains("gas") ||
-                    merchant.contains("broadband") ||
-                    merchant.contains("jiofiber") ->
-                "Bills"
-
-            // 📱 ELECTRONICS
-            merchant.contains("croma") ||
-                    merchant.contains("vijay sales") ||
-                    merchant.contains("reliance digital") ->
-                "Electronics"
-
-            // 🚕 TRANSPORT
-            merchant.contains("uber") ||
-                    merchant.contains("ola") ||
-                    merchant.contains("rapido") ->
-                "Transport"
-
-            else -> "Others"
+        for ((category, keywords) in categoryMap) {
+            if (keywords.any { merchant.contains(it) }) {
+                return category
+            }
         }
+
+        return "Others"
     }
 }
