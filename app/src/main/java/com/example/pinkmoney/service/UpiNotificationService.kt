@@ -16,17 +16,8 @@ class UpiNotificationService : NotificationListenerService() {
 
         val packageName = sbn.packageName
 
-        // 1️⃣ Source filter
-        //We were checking for notifs from upi apps as well as messages, but that results in duplicates.
-        // Trying if it works without UPI notifs.
-        // If we want to parse UPI notifs as well, all we need to do is read the ref id of the transaction.
-//        val isFinancialSource =
-//            UpiAppFilter.isUpiApp(packageName) ||
-//                    SmsAppFilter.isSmsApp(packageName)
-
-
+        // ✅ Only SMS (avoid duplicates)
         val isFinancialSource = SmsAppFilter.isSmsApp(packageName)
-
         if (!isFinancialSource) return
 
         val extras = sbn.notification.extras
@@ -36,7 +27,7 @@ class UpiNotificationService : NotificationListenerService() {
         val rawText = "$title $text"
         val combinedText = rawText.lowercase()
 
-        // 2️⃣ Keyword filter
+        // ✅ Keyword filter
         val isFinancial = listOf(
             "paid", "debited", "credited", "received",
             "transaction", "upi", "₹", "inr"
@@ -44,31 +35,28 @@ class UpiNotificationService : NotificationListenerService() {
 
         if (!isFinancial) return
 
-        // 3️⃣ Noise filter
+        // ✅ Noise filter
         if (!TransactionValidityFilter.isValidTransaction(combinedText)) {
-            Log.d("PinkMoneyFilter", "Ignored non‑transaction notification")
+            Log.d("PinkMoneyFilter", "Ignored non-transaction notification")
             return
         }
 
-        // 4️⃣ Extract amount locally
+        // ✅ Extract amount
         val amount = AmountParser.extractAmount(combinedText) ?: return
-        val timestamp = sbn.postTime
 
-        val source =
-            if (SmsAppFilter.isSmsApp(packageName)) "SMS"
-            else "UPI"
+        val timestamp = sbn.postTime
+        val source = "SMS"
 
         val db = PinkMoneyDatabase.getInstance(applicationContext)
 
         Log.d("PinkMoneyAI", "Sending transaction to Gemini")
         Log.d("GeminiPrompt", rawText)
 
-        // 5️⃣ CALL GEMINI (NEW SIGNATURE)
+        // 🔥 GEMINI CALL
         GeminiParser.parseTransaction(rawText) { category, merchant, type ->
 
             Log.d("PinkMoneyAIResult", "CATEGORY=$category")
 
-            // 🚨 VERY IMPORTANT
             if (category != "REAL_TRANSACTION") {
                 Log.d("PinkMoneyAI", "Ignored $category message")
                 return@parseTransaction
@@ -77,43 +65,62 @@ class UpiNotificationService : NotificationListenerService() {
             val finalMerchant = merchant ?: "Unknown"
             val finalType = type ?: "UNKNOWN"
 
-            val normalizedMerchant =
-                MerchantNormalizer.normalize(finalMerchant)
-
-            val category =
-                MerchantCategoryClassifier.classify(normalizedMerchant)
-
-            Log.d(
-                "PinkMoneyAIResult",
-                "TYPE=$finalType | MERCHANT=$normalizedMerchant"
-            )
-
-            val transactionHash = TransactionHasher.generate(
-                amount = amount,
-                merchant = normalizedMerchant,
-                timestamp = timestamp,
-                transactionType = finalType,
-                source = source
-            )
-
-            val transaction = TransactionEntity(
-                amount = amount,
-                merchant = normalizedMerchant,
-                timestamp = timestamp,
-                source = source,
-                transactionType = finalType,
-                rawText = rawText,
-                transactionHash = transactionHash,
-                category = category
-            )
-
+            // 🔥 EVERYTHING IMPORTANT HAPPENS HERE
             CoroutineScope(Dispatchers.IO).launch {
-                val rowId = db.transactionDao().insertTransaction(transaction)
+
+                val normalizedMerchant =
+                    MerchantNormalizer.normalize(finalMerchant)
+
+                // ✅ 1. Check user mapping first
+                val savedBucket = db.bucketDao()
+                    .getBucketForMerchant(normalizedMerchant)
+
+                val finalCategory = if (savedBucket != null) {
+
+                    Log.d(
+                        "BUCKET_OVERRIDE",
+                        "$normalizedMerchant → $savedBucket"
+                    )
+
+                    savedBucket
+
+                } else {
+                    // ✅ fallback to rule engine
+                    MerchantCategoryClassifier
+                        .classify(normalizedMerchant)
+                }
+
+                Log.d(
+                    "PinkMoneyAIResult",
+                    "TYPE=$finalType | MERCHANT=$normalizedMerchant | CATEGORY=$finalCategory"
+                )
+
+                val transactionHash = TransactionHasher.generate(
+                    amount = amount,
+                    merchant = normalizedMerchant,
+                    timestamp = timestamp,
+                    transactionType = finalType,
+                    source = source
+                )
+
+                val transaction = TransactionEntity(
+                    amount = amount,
+                    merchant = normalizedMerchant,
+                    timestamp = timestamp,
+                    source = source,
+                    transactionType = finalType,
+                    rawText = rawText,
+                    transactionHash = transactionHash,
+                    category = finalCategory
+                )
+
+                val rowId = db.transactionDao()
+                    .insertTransaction(transaction)
 
                 if (rowId == -1L) {
                     Log.d("PinkMoneyDedup", "Duplicate transaction ignored")
                 } else {
-                    Log.d("PinkMoneyAI", "Transaction inserted using Gemini")
+                    Log.d("PinkMoneyAI", "Transaction inserted")
                 }
             }
         }

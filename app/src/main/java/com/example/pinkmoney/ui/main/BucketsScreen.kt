@@ -15,27 +15,37 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.example.pinkmoney.data.db.PinkMoneyDatabase
+import com.example.pinkmoney.data.entity.MerchantBucketMap
 import com.example.pinkmoney.data.entity.TransactionEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 
 @Composable
 fun BucketsScreen(incomingTransaction: TransactionEntity?) {
+
+    val context = LocalContext.current
 
     val buckets = listOf(
         "Food", "Groceries", "Shopping", "Bills",
         "Transport", "Electronics", "Entertainment", "Transfers"
     )
 
-    // ✅ START VISIBLE (fix your main bug)
-    var cardPosition by remember {
-        mutableStateOf(Offset(300f, 1400f))
-    }
-
+    var cardPosition by remember { mutableStateOf(Offset(200f, 1400f)) }
     val bucketPositions = remember { mutableStateMapOf<String, Offset>() }
     var hoveredBucket by remember { mutableStateOf<String?>(null) }
+
+    // 🔥 NEW: consume state
+    var isConsumed by remember { mutableStateOf(false) }
+
+    var showDialog by remember { mutableStateOf(false) }
+    var newBucketName by remember { mutableStateOf("") }
 
     Box(
         modifier = Modifier
@@ -49,7 +59,6 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp)
         ) {
-
             items(buckets) { bucket ->
 
                 Card(
@@ -83,12 +92,12 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
             }
         }
 
-        // 🔥 DRAG CARD
-        if (incomingTransaction != null) {
+        // 🔥 DRAG CARD (ONLY IF NOT CONSUMED)
+        if (incomingTransaction != null && !isConsumed) {
 
             Card(
                 modifier = Modifier
-                    .zIndex(1f) // ✅ ensures it's touchable
+                    .zIndex(1f)
                     .offset {
                         IntOffset(
                             cardPosition.x.toInt(),
@@ -100,10 +109,8 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
 
                             onDrag = { change, dragAmount ->
                                 change.consume()
-
                                 cardPosition += dragAmount
 
-                                // 🔥 detect closest bucket
                                 var minDistance = Float.MAX_VALUE
                                 var closest: String? = null
 
@@ -123,17 +130,34 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
                             },
 
                             onDragEnd = {
-                                if (hoveredBucket != null) {
-                                    Log.d(
-                                        "BUCKET_DROP",
-                                        "Dropped on $hoveredBucket"
-                                    )
+
+                                val bucket = hoveredBucket
+                                val txn = incomingTransaction
+
+                                if (bucket != null && txn != null) {
+
+                                    val merchant = txn.merchant ?: "Unknown"
+
+                                    CoroutineScope(Dispatchers.IO).launch {
+
+                                        val db = PinkMoneyDatabase
+                                            .getInstance(context)
+
+                                        db.bucketDao().saveMapping(
+                                            MerchantBucketMap(
+                                                merchant = merchant,
+                                                bucket = bucket
+                                            )
+                                        )
+                                    }
+
+                                    Log.d("BUCKET_SAVE", "$merchant → $bucket")
+
+                                    // 🔥 CONSUME CARD
+                                    isConsumed = true
                                 }
 
                                 hoveredBucket = null
-
-                                // ✅ reset to bottom
-                                cardPosition = Offset(300f, 1400f)
                             }
                         )
                     }
@@ -158,6 +182,51 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
                     )
                 }
             }
+        }
+
+        // ➕ CREATE BUCKET BUTTON
+        FloatingActionButton(
+            onClick = { showDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        ) {
+            Text("+")
+        }
+
+        // 🆕 CREATE BUCKET DIALOG
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = { showDialog = false },
+                confirmButton = {
+                    Button(onClick = {
+                        if (newBucketName.isNotBlank()) {
+
+                            Log.d("BUCKET_CREATE", newBucketName)
+
+                            newBucketName = ""
+                            showDialog = false
+                        }
+                    }) {
+                        Text("Create")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showDialog = false
+                    }) {
+                        Text("Cancel")
+                    }
+                },
+                title = { Text("New Bucket") },
+                text = {
+                    OutlinedTextField(
+                        value = newBucketName,
+                        onValueChange = { newBucketName = it },
+                        placeholder = { Text("Bucket name") }
+                    )
+                }
+            )
         }
     }
 }
