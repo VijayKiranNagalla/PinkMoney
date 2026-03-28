@@ -17,9 +17,15 @@ class UpiNotificationService : NotificationListenerService() {
         val packageName = sbn.packageName
 
         // 1️⃣ Source filter
-        val isFinancialSource =
-            UpiAppFilter.isUpiApp(packageName) ||
-                    SmsAppFilter.isSmsApp(packageName)
+        //We were checking for notifs from upi apps as well as messages, but that results in duplicates.
+        // Trying if it works without UPI notifs.
+        // If we want to parse UPI notifs as well, all we need to do is read the ref id of the transaction.
+//        val isFinancialSource =
+//            UpiAppFilter.isUpiApp(packageName) ||
+//                    SmsAppFilter.isSmsApp(packageName)
+
+
+        val isFinancialSource = SmsAppFilter.isSmsApp(packageName)
 
         if (!isFinancialSource) return
 

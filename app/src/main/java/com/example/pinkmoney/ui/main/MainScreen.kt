@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.example.pinkmoney.ui.transactions.TransactionListScreen
 import com.example.pinkmoney.ui.transactions.TransactionViewModel
+import com.example.pinkmoney.data.entity.TransactionEntity
 
 @Composable
 fun MainScreen(
@@ -17,6 +18,7 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(0) }
+    var selectedTxn by remember { mutableStateOf<TransactionEntity?>(null) }
 
     Scaffold(
         bottomBar = {
@@ -49,10 +51,16 @@ fun MainScreen(
         when (selectedTab) {
             0 -> TransactionListScreen(
                 transactionsFlow = viewModel.transactions,
+                onCategorizeClick = { txn ->
+                    selectedTxn = txn
+                    selectedTab = 1 // 🔥 switch to Buckets tab
+                },
                 modifier = Modifier.padding(padding)
             )
 
-            1 -> BucketsScreen()
+            1 -> BucketsScreen(
+                incomingTransaction = selectedTxn
+            )
 
             2 -> StatsScreen()
         }

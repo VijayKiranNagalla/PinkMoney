@@ -1,5 +1,6 @@
 package com.example.pinkmoney.ui.transactions
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,7 +10,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.pinkmoney.data.entity.TransactionEntity
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +20,7 @@ import java.util.*
 @Composable
 fun TransactionListScreen(
     transactionsFlow: Flow<List<TransactionEntity>>,
+    onCategorizeClick: (TransactionEntity) -> Unit, // ✅ NEW
     modifier: Modifier = Modifier
 ) {
 
@@ -42,15 +43,21 @@ fun TransactionListScreen(
         Spacer(Modifier.height(16.dp))
 
         LazyColumn {
-            items(transactions) {
-                TransactionCard(it)
+            items(transactions) { txn ->
+                TransactionCard(
+                    txn = txn,
+                    onCategorizeClick = onCategorizeClick // ✅ pass down
+                )
             }
         }
     }
 }
 
 @Composable
-fun TransactionCard(txn: TransactionEntity) {
+fun TransactionCard(
+    txn: TransactionEntity,
+    onCategorizeClick: (TransactionEntity) -> Unit // ✅ NEW
+) {
 
     val date = remember(txn.timestamp) {
         SimpleDateFormat("dd MMM", Locale.getDefault())
@@ -71,40 +78,57 @@ fun TransactionCard(txn: TransactionEntity) {
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFF1E1F25)
         ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 6.dp
-        )
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
 
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(18.dp)
         ) {
 
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                Column(modifier = Modifier.weight(1f)) {
+
+                    Text(
+                        text = txn.merchant ?: "Unknown",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Text(
+                        text = "$date • ${txn.transactionType}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
 
                 Text(
-                    text = txn.merchant ?: "Unknown",
+                    text = "₹${txn.amount}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                Text(
-                    text = "$date • ${txn.transactionType}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = amountColor
                 )
             }
 
-            Text(
-                text = "₹${txn.amount}",
-                style = MaterialTheme.typography.titleMedium,
-                color = amountColor
-            )
+            // 🔥 SHOW ONLY FOR "Others"
+            if (txn.category == "Others") {
+
+                Spacer(Modifier.height(10.dp))
+
+                Text(
+                    text = "➕ Categorize",
+                    color = Color(0xFFBB86FC),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.clickable {
+                        onCategorizeClick(txn) // 🚀 trigger navigation
+                    }
+                )
+            }
         }
     }
 }
