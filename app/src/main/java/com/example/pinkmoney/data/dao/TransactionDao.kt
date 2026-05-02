@@ -18,4 +18,11 @@ interface TransactionDao {
 
     @Query("SELECT COUNT(*) FROM transactions WHERE txn_hash = :hash")
     suspend fun exists(hash: String): Int
+
+    // 🔥 NEW FUNCTION (CRITICAL)
+    @Query("UPDATE transactions SET category = :category WHERE merchant = :merchant")
+    suspend fun updateCategoryForMerchant(
+        merchant: String,
+        category: String
+    )
 }

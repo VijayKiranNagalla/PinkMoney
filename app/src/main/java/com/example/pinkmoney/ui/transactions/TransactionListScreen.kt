@@ -20,10 +20,9 @@ import java.util.*
 @Composable
 fun TransactionListScreen(
     transactionsFlow: Flow<List<TransactionEntity>>,
-    onCategorizeClick: (TransactionEntity) -> Unit, // ✅ NEW
+    onCategorizeClick: (TransactionEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
-
     val transactions by transactionsFlow.collectAsState(initial = emptyList())
 
     Column(
@@ -46,7 +45,7 @@ fun TransactionListScreen(
             items(transactions) { txn ->
                 TransactionCard(
                     txn = txn,
-                    onCategorizeClick = onCategorizeClick // ✅ pass down
+                    onCategorizeClick = onCategorizeClick
                 )
             }
         }
@@ -56,7 +55,7 @@ fun TransactionListScreen(
 @Composable
 fun TransactionCard(
     txn: TransactionEntity,
-    onCategorizeClick: (TransactionEntity) -> Unit // ✅ NEW
+    onCategorizeClick: (TransactionEntity) -> Unit
 ) {
 
     val date = remember(txn.timestamp) {
@@ -69,6 +68,8 @@ fun TransactionCard(
         "CREDIT" -> Color(0xFF2E7D32)
         else -> Color.Gray
     }
+
+    val isOther = txn.category == "Others"
 
     Card(
         modifier = Modifier
@@ -87,9 +88,7 @@ fun TransactionCard(
                 .padding(18.dp)
         ) {
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
 
                 Column(modifier = Modifier.weight(1f)) {
 
@@ -115,20 +114,17 @@ fun TransactionCard(
                 )
             }
 
-            // 🔥 SHOW ONLY FOR "Others"
-            if (txn.category == "Others") {
+            Spacer(Modifier.height(10.dp))
 
-                Spacer(Modifier.height(10.dp))
-
-                Text(
-                    text = "➕ Categorize",
-                    color = Color(0xFFBB86FC),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.clickable {
-                        onCategorizeClick(txn) // 🚀 trigger navigation
-                    }
-                )
-            }
+            // 🔥 SMART ACTION BUTTON
+            Text(
+                text = if (isOther) "➕ Categorize" else "✏️ Edit",
+                color = Color(0xFFBB86FC),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.clickable {
+                    onCategorizeClick(txn)
+                }
+            )
         }
     }
 }
