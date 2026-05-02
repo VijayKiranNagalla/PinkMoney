@@ -28,7 +28,10 @@ import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 
 @Composable
-fun BucketsScreen(incomingTransaction: TransactionEntity?) {
+fun BucketsScreen(
+    incomingTransaction: TransactionEntity?,
+    onDone: () -> Unit // 🔥 IMPORTANT
+) {
 
     val context = LocalContext.current
 
@@ -41,11 +44,19 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
     val bucketPositions = remember { mutableStateMapOf<String, Offset>() }
     var hoveredBucket by remember { mutableStateOf<String?>(null) }
 
-    // 🔥 NEW: consume state
-    var isConsumed by remember { mutableStateOf(false) }
+    val selectedBucket = incomingTransaction?.category
+
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var pendingBucket by remember { mutableStateOf<String?>(null) }
+    var pendingTxn by remember { mutableStateOf<TransactionEntity?>(null) }
 
     var showDialog by remember { mutableStateOf(false) }
     var newBucketName by remember { mutableStateOf("") }
+
+    // reset position when new txn comes
+    LaunchedEffect(incomingTransaction) {
+        cardPosition = Offset(200f, 1400f)
+    }
 
     Box(
         modifier = Modifier
@@ -61,6 +72,9 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
         ) {
             items(buckets) { bucket ->
 
+                val isSelected = bucket == selectedBucket
+                val isHovered = bucket == hoveredBucket
+
                 Card(
                     modifier = Modifier
                         .padding(10.dp)
@@ -71,11 +85,11 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
                                 coords.localToRoot(Offset.Zero)
                         },
                     colors = CardDefaults.cardColors(
-                        containerColor =
-                            if (bucket == hoveredBucket)
-                                Color(0xFFBB86FC)
-                            else
-                                Color(0xFF1E1F25)
+                        containerColor = when {
+                            isHovered -> Color(0xFFBB86FC)
+                            isSelected -> Color(0xFF03DAC5)
+                            else -> Color(0xFF1E1F25)
+                        }
                     )
                 ) {
                     Box(
@@ -84,16 +98,19 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
                     ) {
                         Text(
                             text = bucket,
-                            color = if (bucket == hoveredBucket)
-                                Color.Black else Color.White
+                            color = when {
+                                isHovered -> Color.Black
+                                isSelected -> Color.Black
+                                else -> Color.White
+                            }
                         )
                     }
                 }
             }
         }
 
-        // 🔥 DRAG CARD (ONLY IF NOT CONSUMED)
-        if (incomingTransaction != null && !isConsumed) {
+        // 🔥 DRAG CARD (simple + reliable)
+        if (incomingTransaction != null) {
 
             Card(
                 modifier = Modifier
@@ -115,7 +132,6 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
                                 var closest: String? = null
 
                                 bucketPositions.forEach { (bucket, pos) ->
-
                                     val dx = pos.x - cardPosition.x
                                     val dy = pos.y - cardPosition.y
                                     val dist = sqrt(dx * dx + dy * dy)
@@ -130,31 +146,13 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
                             },
 
                             onDragEnd = {
-
                                 val bucket = hoveredBucket
                                 val txn = incomingTransaction
 
                                 if (bucket != null && txn != null) {
-
-                                    val merchant = txn.merchant ?: "Unknown"
-
-                                    CoroutineScope(Dispatchers.IO).launch {
-
-                                        val db = PinkMoneyDatabase
-                                            .getInstance(context)
-
-                                        db.bucketDao().saveMapping(
-                                            MerchantBucketMap(
-                                                merchant = merchant,
-                                                bucket = bucket
-                                            )
-                                        )
-                                    }
-
-                                    Log.d("BUCKET_SAVE", "$merchant → $bucket")
-
-                                    // 🔥 CONSUME CARD
-                                    isConsumed = true
+                                    pendingBucket = bucket
+                                    pendingTxn = txn
+                                    showConfirmDialog = true
                                 }
 
                                 hoveredBucket = null
@@ -184,7 +182,58 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
             }
         }
 
-        // ➕ CREATE BUCKET BUTTON
+        // ✅ CONFIRMATION
+        if (showConfirmDialog && pendingTxn != null && pendingBucket != null) {
+
+            AlertDialog(
+                onDismissRequest = { showConfirmDialog = false },
+                confirmButton = {
+                    Button(onClick = {
+
+                        val merchant = pendingTxn!!.merchant ?: "Unknown"
+
+                        CoroutineScope(Dispatchers.IO).launch {
+                            val db = PinkMoneyDatabase.getInstance(context)
+
+                            db.bucketDao().saveMapping(
+                                MerchantBucketMap(
+                                    merchant = merchant,
+                                    bucket = pendingBucket!!
+                                )
+                            )
+
+                            db.transactionDao().updateCategoryForMerchant(
+                                merchant = merchant,
+                                category = pendingBucket!!
+                            )
+                        }
+
+                        Log.d("BUCKET_SAVE", "$merchant → $pendingBucket")
+
+                        showConfirmDialog = false
+
+                        // 🔥 THIS IS THE MAGIC FIX
+                        onDone()
+
+                    }) {
+                        Text("Yes")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showConfirmDialog = false
+                    }) {
+                        Text("No")
+                    }
+                },
+                title = { Text("Confirm") },
+                text = {
+                    Text("Add \"${pendingTxn!!.merchant}\" to ${pendingBucket}?")
+                }
+            )
+        }
+
+        // ➕ CREATE BUCKET
         FloatingActionButton(
             onClick = { showDialog = true },
             modifier = Modifier
@@ -194,16 +243,13 @@ fun BucketsScreen(incomingTransaction: TransactionEntity?) {
             Text("+")
         }
 
-        // 🆕 CREATE BUCKET DIALOG
         if (showDialog) {
             AlertDialog(
                 onDismissRequest = { showDialog = false },
                 confirmButton = {
                     Button(onClick = {
                         if (newBucketName.isNotBlank()) {
-
                             Log.d("BUCKET_CREATE", newBucketName)
-
                             newBucketName = ""
                             showDialog = false
                         }

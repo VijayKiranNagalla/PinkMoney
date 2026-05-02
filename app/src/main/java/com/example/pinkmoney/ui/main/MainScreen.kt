@@ -23,25 +23,22 @@ fun MainScreen(
     Scaffold(
         bottomBar = {
             NavigationBar {
-
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.List, contentDescription = null) },
+                    icon = { Icon(Icons.Default.List, null) },
                     label = { Text("Home") }
                 )
-
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
+                    icon = { Icon(Icons.Default.AccountTree, null) },
                     label = { Text("Buckets") }
                 )
-
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
+                    icon = { Icon(Icons.Default.BarChart, null) },
                     label = { Text("Stats") }
                 )
             }
@@ -49,17 +46,21 @@ fun MainScreen(
     ) { padding ->
 
         when (selectedTab) {
+
             0 -> TransactionListScreen(
                 transactionsFlow = viewModel.transactions,
                 onCategorizeClick = { txn ->
                     selectedTxn = txn
-                    selectedTab = 1 // 🔥 switch to Buckets tab
+                    selectedTab = 1
                 },
                 modifier = Modifier.padding(padding)
             )
 
             1 -> BucketsScreen(
-                incomingTransaction = selectedTxn
+                incomingTransaction = selectedTxn,
+                onDone = {
+                    selectedTxn = null   // 🔥 RESET MAGIC
+                }
             )
 
             2 -> StatsScreen()
