@@ -27,6 +27,10 @@ class MainActivity : ComponentActivity() {
             val transactionViewModel: TransactionViewModel = viewModel(
                 factory = object : ViewModelProvider.Factory {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                        if (!modelClass.isAssignableFrom(TransactionViewModel::class.java)) {
+                            throw IllegalArgumentException("Unknown ViewModel class")
+                        }
+                        @Suppress("UNCHECKED_CAST")
                         return TransactionViewModel(database) as T
                     }
                 }

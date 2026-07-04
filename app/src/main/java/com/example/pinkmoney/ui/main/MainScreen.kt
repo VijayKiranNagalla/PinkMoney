@@ -1,10 +1,11 @@
 package com.example.pinkmoney.ui.main
 
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -21,12 +22,13 @@ fun MainScreen(
     var selectedTxn by remember { mutableStateOf<TransactionEntity?>(null) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.List, null) },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, null) },
                     label = { Text("Home") }
                 )
                 NavigationBarItem(
@@ -60,10 +62,13 @@ fun MainScreen(
                 incomingTransaction = selectedTxn,
                 onDone = {
                     selectedTxn = null   // 🔥 RESET MAGIC
-                }
+                },
+                modifier = Modifier.padding(padding)
             )
 
-            2 -> StatsScreen()
+            2 -> StatsScreen(
+                modifier = Modifier.padding(padding)
+            )
         }
     }
 }
