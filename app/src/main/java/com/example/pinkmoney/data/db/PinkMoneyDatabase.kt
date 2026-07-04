@@ -4,11 +4,14 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.example.pinkmoney.data.dao.TransactionDao
 import com.example.pinkmoney.data.dao.BucketDao
-import com.example.pinkmoney.data.entity.TransactionEntity
+import com.example.pinkmoney.data.dao.TransactionDao
 import com.example.pinkmoney.data.entity.BucketEntity
 import com.example.pinkmoney.data.entity.MerchantBucketMap
+import com.example.pinkmoney.data.entity.TransactionEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Database(
     entities = [
@@ -16,7 +19,7 @@ import com.example.pinkmoney.data.entity.MerchantBucketMap
         BucketEntity::class,
         MerchantBucketMap::class
     ],
-    version = 8,
+    version = 11,
     exportSchema = false
 )
 abstract class PinkMoneyDatabase : RoomDatabase() {
@@ -29,16 +32,44 @@ abstract class PinkMoneyDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: PinkMoneyDatabase? = null
 
+        private val defaultBucketNames = listOf(
+            "Food",
+            "Groceries",
+            "Shopping",
+            "Bills",
+            "Transport",
+            "Electronics",
+            "Entertainment",
+            "Transfers"
+        )
+
         fun getInstance(context: Context): PinkMoneyDatabase {
+
             return INSTANCE ?: synchronized(this) {
+
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     PinkMoneyDatabase::class.java,
                     "pinkmoney_db"
                 )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(false)
                     .build()
-                    .also { INSTANCE = it }
+                    .also { database ->
+                        INSTANCE = database
+                        seedDefaultBucketsIfNeeded(database)
+                    }
+            }
+        }
+
+        private fun seedDefaultBucketsIfNeeded(database: PinkMoneyDatabase) {
+            CoroutineScope(Dispatchers.IO).launch {
+                if (database.bucketDao().bucketCount() == 0) {
+                    database.bucketDao().insertBuckets(
+                        defaultBucketNames.map { name ->
+                            BucketEntity(name = name)
+                        }
+                    )
+                }
             }
         }
     }
