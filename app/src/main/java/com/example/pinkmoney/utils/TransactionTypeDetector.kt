@@ -15,7 +15,10 @@ object TransactionTypeDetector {
             "credited",
             "received",
             "refund",
-            "cashback"
+            "cashback",
+            "deposited",
+            "deposit",
+            "reversal"
         ).any { lower.contains(it) }
 
         val isDebit = listOf(
@@ -23,7 +26,11 @@ object TransactionTypeDetector {
             "paid",
             "spent",
             "sent",
-            "withdrawn"
+            "withdrawn",
+            "transfer",
+            "transferred",
+            "purchase",
+            "dr."
         ).any { lower.contains(it) }
 
         return when {

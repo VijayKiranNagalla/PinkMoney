@@ -9,18 +9,25 @@ object TransactionHasher {
         merchant: String?,
         timestamp: Long,
         transactionType: String?,
-        source: String
+        source: String,
+        rawText: String?
     ): String {
-
-        // Round timestamp to minute to avoid tiny differences
-        val normalizedTime = timestamp / (60 * 1000)
+        val normalizedText = rawText
+            ?.lowercase()
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            .orEmpty()
 
         val baseString = listOf(
             amount.toString(),
             merchant ?: "UNKNOWN",
             transactionType,
             source,
-            normalizedTime.toString()
+            if (normalizedText.isNotEmpty()) {
+                normalizedText
+            } else {
+                (timestamp / (60 * 1000)).toString()
+            }
         ).joinToString("|")
 
         return sha256(baseString)

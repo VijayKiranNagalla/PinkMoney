@@ -67,6 +67,7 @@ fun MainScreen(
             )
 
             2 -> StatsScreen(
+                transactionsFlow = viewModel.transactions,
                 modifier = Modifier.padding(padding)
             )
         }

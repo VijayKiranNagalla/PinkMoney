@@ -49,7 +49,12 @@ fun TransactionListScreen(
             contentPadding = PaddingValues(bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(transactions) { txn ->
+            items(
+                items = transactions,
+                key = { txn ->
+                    txn.transactionHash.ifBlank { txn.id.toString() }
+                }
+            ) { txn ->
                 TransactionCard(
                     txn = txn,
                     onCategorizeClick = onCategorizeClick

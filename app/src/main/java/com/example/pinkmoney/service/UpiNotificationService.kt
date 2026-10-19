@@ -63,7 +63,11 @@ class UpiNotificationService : NotificationListenerService() {
             }
 
             val finalMerchant = merchant ?: "Unknown"
-            val finalType = type ?: "UNKNOWN"
+            val aiType = type?.uppercase()
+            val finalType = when (aiType) {
+                "DEBIT", "CREDIT" -> aiType
+                else -> TransactionTypeDetector.detect(rawText).name
+            }
 
             // 🔥 EVERYTHING IMPORTANT HAPPENS HERE
             CoroutineScope(Dispatchers.IO).launch {
@@ -100,7 +104,8 @@ class UpiNotificationService : NotificationListenerService() {
                     merchant = normalizedMerchant,
                     timestamp = timestamp,
                     transactionType = finalType,
-                    source = source
+                    source = source,
+                    rawText = rawText
                 )
 
                 val transaction = TransactionEntity(

@@ -1,10 +1,17 @@
 package com.example.pinkmoney.ui.main
 
 import android.util.Log
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,6 +30,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -52,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -66,8 +77,14 @@ import com.example.pinkmoney.data.db.PinkMoneyDatabase
 import com.example.pinkmoney.data.entity.BucketEntity
 import com.example.pinkmoney.data.entity.MerchantBucketMap
 import com.example.pinkmoney.data.entity.TransactionEntity
+import com.example.pinkmoney.utils.TransactionDeduplicator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
@@ -82,16 +99,30 @@ fun BucketsScreen(
     val buckets by db.bucketDao()
         .getBuckets()
         .collectAsState(initial = emptyList())
+    val transactions by db.transactionDao()
+        .getAllTransactions()
+        .collectAsState(initial = emptyList())
 
     val density = LocalDensity.current
+    val gridState = rememberLazyGridState()
     val bucketBounds = remember { mutableStateMapOf<String, Rect>() }
+    var newBucketBounds by remember { mutableStateOf<Rect?>(null) }
     var cardPosition by remember { mutableStateOf(Offset.Zero) }
+    var dragCardCenter by remember { mutableStateOf(Offset.Zero) }
+    var isDragging by remember { mutableStateOf(false) }
     var hoveredBucket by remember { mutableStateOf<String?>(null) }
+    var hoveredNewBucket by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingBucket by remember { mutableStateOf<String?>(null) }
     var pendingTxn by remember { mutableStateOf<TransactionEntity?>(null) }
     var showDialog by remember { mutableStateOf(false) }
+    var bucketToCreateFor by remember { mutableStateOf<TransactionEntity?>(null) }
     var newBucketName by remember { mutableStateOf("") }
+    var selectedBucketName by remember { mutableStateOf<String?>(null) }
+
+    val visibleTransactions = remember(transactions) {
+        TransactionDeduplicator.dedupe(transactions)
+    }
 
     fun requestAssignment(bucketName: String, txn: TransactionEntity?) {
         if (txn == null) return
@@ -100,14 +131,40 @@ fun BucketsScreen(
         showConfirmDialog = true
     }
 
+    fun openCreateBucket(assignToTransaction: TransactionEntity? = null) {
+        bucketToCreateFor = assignToTransaction
+        showDialog = true
+    }
+
     fun createBucket() {
         val trimmedName = newBucketName.trim()
         if (trimmedName.isEmpty()) return
+        val txnToAssign = bucketToCreateFor
 
-        scope.launch(Dispatchers.IO) {
-            db.bucketDao().insertBucket(BucketEntity(name = trimmedName))
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                db.bucketDao().insertBucket(BucketEntity(name = trimmedName))
+
+                if (txnToAssign != null) {
+                    val merchant = txnToAssign.merchant ?: "Unknown"
+                    db.bucketDao().saveMapping(
+                        MerchantBucketMap(
+                            merchant = merchant,
+                            bucket = trimmedName
+                        )
+                    )
+                    db.transactionDao().updateCategoryForMerchant(
+                        merchant = merchant,
+                        category = trimmedName
+                    )
+                }
+            }
+            if (txnToAssign != null) {
+                onDone()
+            }
         }
         newBucketName = ""
+        bucketToCreateFor = null
         showDialog = false
     }
 
@@ -141,8 +198,8 @@ fun BucketsScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        val cardWidthPx = with(density) { 280.dp.toPx() }
-        val cardHeightPx = with(density) { 104.dp.toPx() }
+        val cardWidthPx = with(density) { 232.dp.toPx() }
+        val cardHeightPx = with(density) { 84.dp.toPx() }
         val horizontalInsetPx = with(density) { 20.dp.toPx() }
         val bottomInsetPx = with(density) { 132.dp.toPx() }
         val containerWidthPx = with(density) { maxWidth.toPx() }
@@ -154,6 +211,24 @@ fun BucketsScreen(
                     x = horizontalInsetPx.coerceAtMost((containerWidthPx - cardWidthPx).coerceAtLeast(0f)),
                     y = (containerHeightPx - bottomInsetPx).coerceAtLeast(horizontalInsetPx)
                 )
+                dragCardCenter = Offset(
+                    x = cardPosition.x + cardWidthPx / 2f,
+                    y = cardPosition.y + cardHeightPx / 2f
+                )
+            }
+        }
+
+        LaunchedEffect(isDragging, containerHeightPx) {
+            while (isDragging) {
+                val edgeSize = with(density) { 96.dp.toPx() }
+                val scrollStep = with(density) { 22.dp.toPx() }
+
+                when {
+                    dragCardCenter.y < edgeSize -> gridState.scrollBy(-scrollStep)
+                    dragCardCenter.y > containerHeightPx - edgeSize -> gridState.scrollBy(scrollStep)
+                }
+
+                delay(16)
             }
         }
 
@@ -165,7 +240,7 @@ fun BucketsScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.Start
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -184,27 +259,13 @@ fun BucketsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
-                Button(
-                    onClick = { showDialog = true },
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Bucket")
-                }
             }
 
             Spacer(Modifier.height(18.dp))
 
             if (buckets.isEmpty()) {
                 EmptyBucketsState(
-                    onCreateClick = { showDialog = true },
+                    onCreateClick = { openCreateBucket(incomingTransaction) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
@@ -212,6 +273,7 @@ fun BucketsScreen(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 150.dp),
+                    state = gridState,
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -232,8 +294,12 @@ fun BucketsScreen(
                                 .onGloballyPositioned { coords ->
                                     bucketBounds[bucketName] = coords.boundsInRoot()
                                 }
-                                .clickable(enabled = incomingTransaction != null) {
-                                    requestAssignment(bucketName, incomingTransaction)
+                                .clickable {
+                                    if (incomingTransaction != null) {
+                                        requestAssignment(bucketName, incomingTransaction)
+                                    } else {
+                                        selectedBucketName = bucketName
+                                    }
                                 }
                         )
                     }
@@ -248,15 +314,22 @@ fun BucketsScreen(
             Card(
                 modifier = Modifier
                     .zIndex(1f)
-                    .width(280.dp)
+                    .width(232.dp)
                     .offset {
                         IntOffset(
                             cardPosition.x.roundToInt(),
                             cardPosition.y.roundToInt()
                         )
                     }
-                    .pointerInput(bucketBounds) {
+                    .pointerInput(bucketBounds, newBucketBounds) {
                         detectDragGestures(
+                            onDragStart = {
+                                isDragging = true
+                                dragCardCenter = Offset(
+                                    x = cardPosition.x + cardWidthPx / 2f,
+                                    y = cardPosition.y + cardHeightPx / 2f
+                                )
+                            },
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 cardPosition = Offset(
@@ -268,19 +341,31 @@ fun BucketsScreen(
                                     x = cardPosition.x + cardWidthPx / 2f,
                                     y = cardPosition.y + cardHeightPx / 2f
                                 )
-                                hoveredBucket = bucketBounds.entries
-                                    .firstOrNull { (_, bounds) -> bounds.contains(cardCenter) }
-                                    ?.key
+                                dragCardCenter = cardCenter
+                                hoveredNewBucket = newBucketBounds?.contains(cardCenter) == true
+                                hoveredBucket = if (hoveredNewBucket) {
+                                    null
+                                } else {
+                                    bucketBounds.entries
+                                        .firstOrNull { (_, bounds) -> bounds.contains(cardCenter) }
+                                        ?.key
+                                }
                             },
                             onDragEnd = {
+                                isDragging = false
                                 val bucket = hoveredBucket
-                                if (bucket != null) {
+                                if (hoveredNewBucket) {
+                                    openCreateBucket(incomingTransaction)
+                                } else if (bucket != null) {
                                     requestAssignment(bucket, incomingTransaction)
                                 }
                                 hoveredBucket = null
+                                hoveredNewBucket = false
                             },
                             onDragCancel = {
+                                isDragging = false
                                 hoveredBucket = null
+                                hoveredNewBucket = false
                             }
                         )
                     },
@@ -294,26 +379,26 @@ fun BucketsScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(14.dp)
                 ) {
                     Text(
                         text = incomingTransaction.merchant ?: "Unknown",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "Rs ${incomingTransaction.amount}",
-                        style = MaterialTheme.typography.titleSmall
+                        text = "₹${incomingTransaction.amount}",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
         }
 
         ExtendedFloatingActionButton(
-            onClick = { showDialog = true },
+            onClick = { openCreateBucket(incomingTransaction) },
             icon = {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -323,6 +408,13 @@ fun BucketsScreen(
             text = { Text("New bucket") },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
+                .onGloballyPositioned { coords ->
+                    newBucketBounds = coords.boundsInRoot()
+                }
+                .graphicsLayer(
+                    scaleX = if (hoveredNewBucket) 1.06f else 1f,
+                    scaleY = if (hoveredNewBucket) 1.06f else 1f
+                )
                 .padding(20.dp)
         )
 
@@ -351,9 +443,22 @@ fun BucketsScreen(
             )
         }
 
+        selectedBucketName?.let { bucketName ->
+            BucketTransactionsDialog(
+                bucketName = bucketName,
+                transactions = visibleTransactions.filter { transaction ->
+                    transaction.category.equals(bucketName, ignoreCase = true)
+                },
+                onDismiss = { selectedBucketName = null }
+            )
+        }
+
         if (showDialog) {
             AlertDialog(
-                onDismissRequest = { showDialog = false },
+                onDismissRequest = {
+                    showDialog = false
+                    bucketToCreateFor = null
+                },
                 confirmButton = {
                     Button(
                         onClick = { createBucket() },
@@ -365,12 +470,23 @@ fun BucketsScreen(
                 },
                 dismissButton = {
                     TextButton(
-                        onClick = { showDialog = false }
+                        onClick = {
+                            showDialog = false
+                            bucketToCreateFor = null
+                        }
                     ) {
                         Text("Cancel")
                     }
                 },
-                title = { Text("New bucket") },
+                title = {
+                    Text(
+                        if (bucketToCreateFor == null) {
+                            "New bucket"
+                        } else {
+                            "New bucket for ${bucketToCreateFor?.merchant ?: "Unknown"}"
+                        }
+                    )
+                },
                 text = {
                     OutlinedTextField(
                         value = newBucketName,
@@ -393,6 +509,21 @@ private fun BucketCard(
     enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val scale by animateFloatAsState(
+        targetValue = if (hovered) 1.06f else 1f,
+        animationSpec = tween(durationMillis = 120),
+        label = "bucketScale"
+    )
+    val jiggleTransition = rememberInfiniteTransition(label = "bucketJiggle")
+    val rotation by jiggleTransition.animateFloat(
+        initialValue = -1.4f,
+        targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 85),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bucketRotation"
+    )
     val accentColor = bucketAccent(name)
     val containerColor = when {
         hovered -> MaterialTheme.colorScheme.primaryContainer
@@ -406,7 +537,11 @@ private fun BucketCard(
     }
 
     Card(
-        modifier = modifier,
+        modifier = modifier.graphicsLayer(
+            scaleX = scale,
+            scaleY = scale,
+            rotationZ = if (hovered) rotation else 0f
+        ),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
@@ -447,13 +582,100 @@ private fun BucketCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (selected) {
+                    Text(
+                        text = "Current",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BucketTransactionsDialog(
+    bucketName: String,
+    transactions: List<TransactionEntity>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        title = { Text(bucketName) },
+        text = {
+            if (transactions.isEmpty()) {
                 Text(
-                    text = if (selected) "Current category" else "Category",
+                    text = "No transactions in this bucket yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(360.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(
+                        items = transactions,
+                        key = { transaction ->
+                            transaction.transactionHash.ifBlank { transaction.id.toString() }
+                        }
+                    ) { transaction ->
+                        BucketTransactionRow(transaction = transaction)
+                    }
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun BucketTransactionRow(
+    transaction: TransactionEntity
+) {
+    val date = remember(transaction.timestamp) {
+        SimpleDateFormat("dd MMM", Locale.getDefault())
+            .format(Date(transaction.timestamp))
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = transaction.merchant ?: "Unknown",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "$date • ${transaction.transactionType}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Text(
+                text = "₹${transaction.amount}",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
