@@ -5,8 +5,10 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.pinkmoney.data.dao.BucketDao
+import com.example.pinkmoney.data.dao.BudgetAlertDao
 import com.example.pinkmoney.data.dao.TransactionDao
 import com.example.pinkmoney.data.entity.BucketEntity
+import com.example.pinkmoney.data.entity.BudgetAlertEntity
 import com.example.pinkmoney.data.entity.MerchantBucketMap
 import com.example.pinkmoney.data.entity.TransactionEntity
 import kotlinx.coroutines.CoroutineScope
@@ -17,15 +19,17 @@ import kotlinx.coroutines.launch
     entities = [
         TransactionEntity::class,
         BucketEntity::class,
-        MerchantBucketMap::class
+        MerchantBucketMap::class,
+        BudgetAlertEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class PinkMoneyDatabase : RoomDatabase() {
 
     abstract fun transactionDao(): TransactionDao
     abstract fun bucketDao(): BucketDao
+    abstract fun budgetAlertDao(): BudgetAlertDao
 
     companion object {
 

@@ -62,6 +62,7 @@ import java.util.Date
 import java.util.Locale
 
 enum class DateRangeFilter(val label: String) {
+    TODAY("Today"),
     ALL_TIME("All Time"),
     LAST_7_DAYS("Last 7 Days"),
     LAST_30_DAYS("Last 30 Days"),
@@ -104,6 +105,15 @@ fun StatsScreen(
     val filteredTransactions = remember(transactions, selectedDateFilter, customStartDate, customEndDate) {
         val now = System.currentTimeMillis()
         val (minTimestamp, maxTimestamp) = when (selectedDateFilter) {
+            DateRangeFilter.TODAY -> {
+                val start = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                start to now
+            }
             DateRangeFilter.ALL_TIME -> null to null
             DateRangeFilter.LAST_7_DAYS -> {
                 val start = Calendar.getInstance().apply {
@@ -215,6 +225,7 @@ fun StatsScreen(
     val periodLabel = remember(selectedDateFilter, customStartDate, customEndDate) {
         val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
         when (selectedDateFilter) {
+            DateRangeFilter.TODAY -> "Today"
             DateRangeFilter.ALL_TIME -> "All time"
             DateRangeFilter.LAST_7_DAYS -> "Last 7 days"
             DateRangeFilter.LAST_30_DAYS -> "Last 30 days"

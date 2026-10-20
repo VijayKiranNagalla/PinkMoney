@@ -34,16 +34,7 @@ fun TransactionListScreen(
             .padding(horizontal = 16.dp)
     ) {
 
-        Spacer(Modifier.height(12.dp))
-
-        Text(
-            text = "PinkMoney",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
 
         LazyColumn(
             contentPadding = PaddingValues(bottom = 18.dp),
