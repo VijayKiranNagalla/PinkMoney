@@ -126,6 +126,11 @@ class UpiNotificationService : NotificationListenerService() {
                     Log.d("PinkMoneyDedup", "Duplicate transaction ignored")
                 } else {
                     Log.d("PinkMoneyAI", "Transaction inserted")
+                    BudgetNotificationHelper.checkAndSendLimitNotifications(
+                        context = applicationContext,
+                        addedAmount = amount,
+                        category = finalCategory
+                    )
                 }
             }
         }

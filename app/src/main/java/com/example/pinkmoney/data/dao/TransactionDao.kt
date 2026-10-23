@@ -16,10 +16,12 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun getAllTransactions(): Flow<List<TransactionEntity>>
 
+    @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
+    suspend fun getTransactionsList(): List<TransactionEntity>
+
     @Query("SELECT COUNT(*) FROM transactions WHERE txn_hash = :hash")
     suspend fun exists(hash: String): Int
 
-    // 🔥 NEW FUNCTION (CRITICAL)
     @Query("UPDATE transactions SET category = :category WHERE merchant = :merchant")
     suspend fun updateCategoryForMerchant(
         merchant: String,
